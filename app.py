@@ -114,7 +114,8 @@ def attempt_payment(
         'fee': '0',
         'dcc_currency': 'INR',
     }
-
+    print(base_data)
+    
     # Parameter toggles: (use_key_id, use_x_entity, use_shield)
     combos = [
         (True, False, True),   # default
@@ -158,6 +159,7 @@ def attempt_payment(
                         'https://api.razorpay.com/v1/standard_checkout/payments/create/ajax',
                         data, base_headers, params
                     )
+                    print(resp.text)
                     if resp.status_code == 200:
                         resp_json = resp.json()
                         payment_id = resp_json.get('payment_id') or resp_json.get('razorpay_payment_id')

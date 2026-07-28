@@ -175,6 +175,9 @@ def attempt_payment(
 # ---------------------------------------------------------------------
 # Flask endpoints
 # ---------------------------------------------------------------------
+@app.route("/",methods=["GET"])
+def welcome():
+    return "Hello World!!!"
 
 @app.route('/create_payment', methods=['POST'])
 def create_payment():

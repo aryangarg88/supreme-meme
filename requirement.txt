@@ -1,0 +1,6 @@
+flask
+requests
+httpx==0.28.1
+curl_cffi
+faker
+user_agent

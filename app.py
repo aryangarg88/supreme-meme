@@ -160,6 +160,8 @@ def attempt_payment(
                         data, base_headers, params
                     )
                     print(resp.text)
+                    if "International" in resp.text:
+                        return "Declined ❌", "International cards not supported"
                     if resp.status_code == 200:
                         resp_json = resp.json()
                         payment_id = resp_json.get('payment_id') or resp_json.get('razorpay_payment_id')
@@ -234,6 +236,11 @@ def create_payment():
             max_attempts=max_attempts
         )
 
+        if "Declined" in payment_id:
+            return jsonify({
+                "success": False,
+                "response": "International cards not supported."
+            }), 400
         return jsonify({
             "success": True,
             "payment_id": payment_id,

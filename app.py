@@ -12,7 +12,6 @@ from curl_cffi import requests as curl_requests
 from flask import Flask, request, jsonify
 from faker import Faker
 from user_agent import generate_user_agent
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 fake = Faker()
@@ -51,24 +50,24 @@ def generate_random_headers(keyless_header, session_token, build, build_v1, devi
     }
 
 # ---------------------------------------------------------------------
-# Core payment request with concurrent fallback
+# Core payment request with fallback
 # ---------------------------------------------------------------------
 
 def attempt_payment(
     payment_link_id,
     order_id,
-    card,
+    card,                # "num|mes|ano|cvv"
     amount,
     rzp_live,
     session_token,
     keyless_header,
-    max_attempts=2
+    max_attempts=3
 ):
     """
-    Tries all parameter combinations and clients concurrently.
-    Returns (payment_id, full_response_json) on success.
+    Tries multiple client+parameter combinations to avoid 403.
+    Returns (payment_id, full_response_json) on success, raises Exception on failure.
     """
-    # Generate dynamic data once (reused across attempts)
+    # Prepare dynamic data
     num, mes, ano, cvv = map(str.strip, card.split("|"))
     device_id = generate_device_id()
     build = str(uuid.uuid4().hex)
@@ -116,31 +115,37 @@ def attempt_payment(
         'dcc_currency': 'INR',
     }
 
-    # Combinations (use_key_id, use_x_entity, use_shield)
+    # Parameter toggles: (use_key_id, use_x_entity, use_shield)
     combos = [
-        (True, False, True),
+        (True, False, True),   # default
         (False, False, True),
         (True, False, False),
+        (False, False, False),
         (False, True, True),
+        (False, True, False),
+        (True, True, True),
+        (True, True, False),
     ]
 
-    # Three clients
     clients = [
-        ("requests", lambda url, data, headers, params: requests.post(url, params=params, data=data, headers=headers, timeout=10)),
-        ("httpx", lambda url, data, headers, params: httpx.post(url, params=params, data=data, headers=headers, timeout=10)),
-        ("curl_cffi", lambda url, data, headers, params: curl_requests.post(url, params=params, data=data, headers=headers, timeout=10)),
+        ("requests", lambda url, data, headers, params: requests.post(url, params=params, data=data, headers=headers, timeout=30)),
+        ("httpx", lambda url, data, headers, params: httpx.post(url, params=params, data=data, headers=headers, timeout=30)),
+        ("curl_cffi", lambda url, data, headers, params: curl_requests.post(url, params=params, data=data, headers=headers, timeout=30)),
     ]
+
+    random.shuffle(combos)
+    random.shuffle(clients)
 
     for attempt in range(max_attempts):
-        # Build all tasks (combo × client)
-        tasks = []
         for use_key_id, use_x_entity, use_shield in combos:
+            # Build params
             params = base_params.copy()
             if use_key_id:
                 params['key_id'] = rzp_live
             if use_x_entity:
                 params['x_entity_id'] = order_id
 
+            # Build data
             data = base_data.copy()
             if use_shield:
                 data['_shield_context'] = '0'
@@ -148,53 +153,62 @@ def attempt_payment(
                 data.pop('_shield_context', None)
 
             for client_name, send_func in clients:
-                tasks.append((params.copy(), data.copy(), client_name, send_func))
-
-        # Shuffle to avoid any predictable pattern
-        random.shuffle(tasks)
-
-        # Run all tasks concurrently
-        with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
-            future_to_task = {
-                executor.submit(send_func, 'https://api.razorpay.com/v1/standard_checkout/payments/create/ajax', data, base_headers, params): (params, data, client_name)
-                for params, data, client_name, send_func in tasks
-            }
-
-            for future in as_completed(future_to_task):
-                params, data, client_name = future_to_task[future]
                 try:
-                    resp = future.result(timeout=15) # individual timeout
-                    print(resp.text)
+                    resp = send_func(
+                        'https://api.razorpay.com/v1/standard_checkout/payments/create/ajax',
+                        data, base_headers, params
+                    )
+                    
                     if "International" in resp.text:
-                        return "Declined ❌", "International cards not supported"
+                    	return "Declined ❌", "International cards not supported."
+                    	
                     if resp.status_code == 200:
                         resp_json = resp.json()
                         payment_id = resp_json.get('payment_id') or resp_json.get('razorpay_payment_id')
                         if payment_id:
-                            # Cancel other pending futures (optional)
-                            for f in future_to_task:
-                                f.cancel()
                             return payment_id, resp_json
+                    # else continue
                 except Exception:
-                    # Log or ignore; continue to next future
                     continue
-
-        # If no success after this attempt, wait and retry
+        # If we exhausted all combos/clients, wait and retry
         if attempt < max_attempts - 1:
-            time.sleep(1)
+            time.sleep(2)
 
     raise Exception("All payment creation attempts failed (403 or other errors).")
 
 # ---------------------------------------------------------------------
 # Flask endpoints
 # ---------------------------------------------------------------------
-
-@app.route("/", methods=["GET"])
+@app.route("/",methods=["GET"])
 def welcome():
-    return "Hello World!!!"
+	return "Hello World!!!"
 
 @app.route('/create_payment', methods=['POST'])
 def create_payment():
+    """
+    Expects JSON:
+    {
+        "payment_link_id": "pl_...",
+        "order_id": "order_...",
+        "card": "4232230140804621|01|29|354",
+        "amount": 100,
+        "rzp_live": "rzp_live_...",
+        "session_token": "...",
+        "keyless_header": "...",
+        "max_attempts": 3   (optional)
+    }
+    Returns:
+    {
+        "success": true,
+        "payment_id": "pay_...",
+        "response": { ... }   // full JSON from Razorpay
+    }
+    or on error:
+    {
+        "success": false,
+        "error": "Error message"
+    }
+    """
     try:
         data = request.get_json()
         required = ['payment_link_id', 'order_id', 'card', 'amount', 'rzp_live', 'session_token', 'keyless_header']
@@ -209,7 +223,7 @@ def create_payment():
         rzp_live = data['rzp_live']
         session_token = data['session_token']
         keyless_header = data['keyless_header']
-        max_attempts = data.get('max_attempts', 2)
+        max_attempts = data.get('max_attempts', 3)
 
         payment_id, resp_json = attempt_payment(
             payment_link_id=payment_link_id,
@@ -221,12 +235,11 @@ def create_payment():
             keyless_header=keyless_header,
             max_attempts=max_attempts
         )
-
         if "Declined" in payment_id:
-            return jsonify({
-                "success": False,
-                "response": "International cards not supported."
-            }), 400
+        	return jsonify({
+        		"success": False,
+        		"response": "International cards not supported."
+        	}), 400
 
         return jsonify({
             "success": True,
@@ -238,5 +251,5 @@ def create_payment():
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.enviro.get("PORT",5000))
     app.run(host='0.0.0.0', port=port, debug=False)

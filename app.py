@@ -148,9 +148,9 @@ def attempt_payment(
             # Build data
             data = base_data.copy()
             if use_shield:
-                data['_shield_context'] = '0'
+                data['_[shield_context]'] = '0'
             else:
-                data.pop('_shield_context', None)
+                data.pop('_[shield_context]', None)   # instead of data.pop('_shield_context', None)
 
             for client_name, send_func in clients:
                 try:

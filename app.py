@@ -163,7 +163,8 @@ def attempt_payment(
             for future in as_completed(future_to_task):
                 params, data, client_name = future_to_task[future]
                 try:
-                    resp = future.result(timeout=15)  # individual timeout
+                    resp = future.result(timeout=15) # individual timeout
+                    print(resp.text)
                     if "International" in resp.text:
                         return "Declined ❌", "International cards not supported"
                     if resp.status_code == 200:

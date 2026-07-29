@@ -128,9 +128,9 @@ def attempt_payment(
     ]
 
     clients = [
-        ("requests", lambda url, data, headers, params: requests.post(url, params=params, data=data, headers=headers, timeout=30)),
-        ("httpx", lambda url, data, headers, params: httpx.post(url, params=params, data=data, headers=headers, timeout=30)),
-        ("curl_cffi", lambda url, data, headers, params: curl_requests.post(url, params=params, data=data, headers=headers, timeout=30)),
+        ("requests", lambda url, data, headers, params: requests.post(url, params=params, data=data, headers=headers, timeout=5)),
+        ("httpx", lambda url, data, headers, params: httpx.post(url, params=params, data=data, headers=headers, timeout=5)),
+        ("curl_cffi", lambda url, data, headers, params: curl_requests.post(url, params=params, data=data, headers=headers, timeout=5)),
     ]
 
     random.shuffle(combos)

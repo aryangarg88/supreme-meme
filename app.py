@@ -158,7 +158,8 @@ def attempt_payment(
                         'https://api.razorpay.com/v1/standard_checkout/payments/create/ajax',
                         data, base_headers, params
                     )
-                    
+                    print(resp.text)
+					
                     if "International" in resp.text:
                     	return "Declined ❌", "International cards not supported."
                     	
@@ -172,7 +173,8 @@ def attempt_payment(
                     continue
         # If we exhausted all combos/clients, wait and retry
         if attempt < max_attempts - 1:
-            time.sleep(2)
+			pass
+            #time.sleep(2)
 
     raise Exception("All payment creation attempts failed (403 or other errors).")
 

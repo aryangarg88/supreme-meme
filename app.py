@@ -173,7 +173,7 @@ def attempt_payment(
                     continue
         # If we exhausted all combos/clients, wait and retry
         if attempt < max_attempts - 1:
-            time.sleep(2)
+            time.sleep(0.5)
 			#pass
 
     raise Exception("All payment creation attempts failed (403 or other errors).")

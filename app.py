@@ -113,7 +113,7 @@ def attempt_payment(
         'billing_address[line2]': 'New York',
         'fee': '0',
         'dcc_currency': 'INR',
-		'_[os]': 'android',
+		'_[os]': 'windows',
     }
 
     # Parameter toggles: (use_key_id, use_x_entity, use_shield)

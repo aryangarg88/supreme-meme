@@ -40,7 +40,7 @@ def generate_random_headers(keyless_header, session_token, build, build_v1, devi
         'Content-type': 'application/x-www-form-urlencoded',
         'Origin': 'https://api.razorpay.com',
         'Referer': f'https://api.razorpay.com/v1/checkout/public?traffic_env=production&build={build}&build_v1={build_v1}&keyless_header={keyless_header}&rzp_device_id={device_id}',
-        'User-Agent': agent,
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36',
         'x-session-token': session_token,
         "X-Forwarded-For": ip,
         "X-Client-IP": ip,
@@ -113,7 +113,7 @@ def attempt_payment(
         'billing_address[line2]': 'New York',
         'fee': '0',
         'dcc_currency': 'INR',
-		'_[os]': 'windows',
+		'_[os]': 'android',
     }
 
     # Parameter toggles: (use_key_id, use_x_entity, use_shield)
